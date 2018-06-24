@@ -17,18 +17,29 @@ type httpMethod = [
 module ClientRequest = {
   type t;
 
-  [@bs.get_index] [@bs.scope ("headers")] external getHeader : (t, string) => string = "";
+  [@bs.get_index] [@bs.scope "headers"]
+  external getHeader : (t, string) => string = "";
   [@bs.get] external getMethod : t => abs_httpMethod = "method";
+  [@bs.get] external getUrl : t => string = "url";
 
   let getMethod = (response: t) => {
     let method = getMethod(response);
     httpMethodFromJs(method);
   };
+
+  let getPath = (request: t) => {
+    let path = getUrl(request);
+    Js.String.split(
+      "/",
+      Js.String.slice(~from=1, ~to_=Js.String.length(path), path),
+    )
+    |> Belt.List.fromArray;
+  };
 };
 
 module Server = {
   type t;
-  [@bs.send.pipe : t] external listen : (~port: int) => t = "";
+  [@bs.send.pipe: t] external listen : (~port: int) => t = "";
 };
 
 module ServerResponse = {
@@ -38,17 +49,22 @@ module ServerResponse = {
    * Bind the external node API calls here so that we have the bindings
    * available. Mapping to the interface we want happens below.
    */
-  [@bs.send] external removeHeader : (t, string) => unit = "";
+  [@bs.send]
+  external removeHeader : (t, string) => unit = "";
   [@bs.send] external setHeader : (t, string, string) => unit = "";
   [@bs.send] external write : (t, string, CharEncoding.abs_t) => unit = "";
-  [@bs.send] external writeCallback : (t, string, CharEncoding.abs_t, string => unit) => unit = "write";
+  [@bs.send]
+  external writeCallback :
+    (t, string, CharEncoding.abs_t, string => unit) => unit =
+    "write";
   [@bs.set] external setStatusCode : (t, int) => unit = "statusCode";
   [@bs.set] external setStatusMessage : (t, string) => unit = "statusMessage";
 
   /**
    * Actual interface implementation will happen below here.
    */
-  [@bs.send] external end_ : t => unit = "end";
+  [@bs.send]
+  external end_ : t => unit = "end";
 
   let removeHeader = (header: string, response: t) => {
     removeHeader(response, header);
@@ -60,32 +76,32 @@ module ServerResponse = {
     response;
   };
 
-  let write = (chunk: string, ~encoding: option(CharEncoding.t)=?, response: t) => {
-    let en = switch encoding {
-    | Some(e) => e
-    | None => `utf8
-    };
+  let write =
+      (chunk: string, ~encoding: option(CharEncoding.t)=?, response: t) => {
+    let en =
+      switch (encoding) {
+      | Some(e) => e
+      | None => `utf8
+      };
 
-    write(
-      response,
-      chunk,
-      CharEncoding.tToJs(en)
-    );
+    write(response, chunk, CharEncoding.tToJs(en));
     response;
   };
 
-  let writeCallback = (chunk: string, ~encoding: option(CharEncoding.t)=?, callback, response: t) => {
-    let en = switch encoding {
-    | Some(e) => e
-    | None => `utf8
-    };
+  let writeCallback =
+      (
+        chunk: string,
+        ~encoding: option(CharEncoding.t)=?,
+        callback,
+        response: t,
+      ) => {
+    let en =
+      switch (encoding) {
+      | Some(e) => e
+      | None => `utf8
+      };
 
-    writeCallback(
-      response,
-      chunk,
-      CharEncoding.tToJs(en),
-      callback
-    );
+    writeCallback(response, chunk, CharEncoding.tToJs(en), callback);
     response;
   };
 
@@ -99,10 +115,17 @@ module ServerResponse = {
     response;
   };
 
-  [@bs.send.pipe : Server.t] external on : ([@bs.string] [
-    | `request((~request: ClientRequest.t, ~response: t) => unit)
-    | `close(unit => unit)
-  ]) => Server.t = "";
+  [@bs.send.pipe: Server.t]
+  external on :
+    (
+    [@bs.string]
+    [
+      | `request((~request: ClientRequest.t, ~response: t) => unit)
+      | `close(unit => unit)
+    ]
+    ) =>
+    Server.t =
+    "";
 };
 
 [@bs.module "http"]
